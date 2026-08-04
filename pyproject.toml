@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rubi-integration-test-suite"
+version = "0.0.1"
+description = "Rubi MathematicaSyntaxTestSuite translated to SymPy: 66k+ integral test cases, generator and runner"
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "sympy",
+    "pydantic",
+]
+
+[project.optional-dependencies]
+generator = ["sympy-wolfram"]
+runner = ["rubi-integrate"]
+
+[tool.setuptools.packages.find]
+include = ["rubi_integration_test_suite*"]
