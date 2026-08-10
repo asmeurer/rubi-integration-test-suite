@@ -31,6 +31,8 @@ Classification per case:
 """
 import importlib
 import inspect
+import json
+import os
 import pkgutil
 import signal
 import sys
@@ -40,7 +42,8 @@ from collections import Counter
 sys.path.insert(0, sys.argv[1])          # the sympy checkout to test
 sys.path.insert(0, '.')                   # this repo (corpus package)
 
-from sympy import Integral, Rational, Pow, nan, oo, zoo, integrate  # noqa: E402
+from sympy import (Integral, Rational, Pow, nan, oo, zoo, integrate,  # noqa: E402
+    latex)
 from sympy.integrals.risch import (risch_integrate,      # noqa: E402
     NonElementaryIntegral)
 
@@ -52,6 +55,19 @@ TIMEOUT = 5
 # risch-algebraic); without it this measures stock risch_integrate.
 HAS_ALGEBRAIC = 'algebraic' in inspect.signature(risch_integrate).parameters
 RISCH_KWARGS = {'algebraic': True} if HAS_ALGEBRAIC else {}
+
+# Environment knobs (so the CLI stays simple):
+#   RISCH_RESULTS       append one JSON line per case to this path
+#   RISCH_MODE          'algebraic' (default: radical cases) or
+#                       'transcendental' (radical-free exp-log cases,
+#                       run without the algebraic towers)
+#   RISCH_HANDLE_FIRST  'log' (default) or 'exp' (tower order)
+RESULTS_PATH = os.environ.get('RISCH_RESULTS')
+MODE = os.environ.get('RISCH_MODE', 'algebraic')
+HANDLE_FIRST = os.environ.get('RISCH_HANDLE_FIRST', 'log')
+if MODE == 'transcendental':
+    RISCH_KWARGS = {}
+RISCH_KWARGS['handle_first'] = HANDLE_FIRST
 
 
 def iter_cases(subpackage):
@@ -79,9 +95,11 @@ def attemptable(f, x):
             return False
     if f.has(nan, oo, zoo):
         return False
-    # needs an actual radical to be interesting for the algebraic path
-    return any(p.exp.is_Rational and not p.exp.is_Integer
-               for p in f.atoms(Pow))
+    has_radical = any(p.exp.is_Rational and not p.exp.is_Integer
+                      for p in f.atoms(Pow))
+    if MODE == 'transcendental':
+        return not has_radical
+    return has_radical
 
 
 def main():
@@ -101,6 +119,7 @@ def main():
         if not attemptable(f, x):
             continue
         kind = 'concrete' if f.free_symbols <= {x} else 'parametric'
+        reason = ''
         n_tried += 1
         if limit and n_tried > limit:
             n_tried -= 1
@@ -119,8 +138,9 @@ def main():
             cls = 'timeout'
             print('  TIMEOUT-CASE %s | %s' % (modname.rsplit('.', 1)[-1], f),
                   flush=True)
-        except NotImplementedError:
+        except NotImplementedError as e:
             cls = 'NIE'
+            reason = str(e)[:160].replace('\n', ' ')
         except Exception as e:
             cls = 'error:' + type(e).__name__
         finally:
@@ -138,6 +158,11 @@ def main():
                 signal.alarm(0)
             cls = 'SOLVED-both' if old_ok else 'SOLVED-NEW'
         stats[kind][cls] += 1
+        if RESULTS_PATH:
+            with open(RESULTS_PATH, 'a') as fh:
+                fh.write(json.dumps({'mod': modname.rsplit('.', 1)[-1],
+                    'expr': str(f), 'latex': latex(f), 'kind': kind,
+                    'cls': cls, 'reason': reason}) + '\n')
         if n_tried % 50 == 0:
             print('  ...%d tried, %.0f s' % (n_tried, time.time() - t0),
                   flush=True)
