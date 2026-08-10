@@ -95,7 +95,12 @@ def attemptable(f, x):
             return False
     if f.has(nan, oo, zoo):
         return False
+    # a "true" radical for the algebraic towers: fractional power of an
+    # x-dependent base that is not itself an exponential (sqrt(exp(u))
+    # rewrites to exp(u/2), and constant radicals just extend the
+    # constant field -- both leave the tower transcendental)
     has_radical = any(p.exp.is_Rational and not p.exp.is_Integer
+                      and p.base.has(x) and not p.base.func.__name__ == 'exp'
                       for p in f.atoms(Pow))
     if MODE == 'transcendental':
         return not has_radical
