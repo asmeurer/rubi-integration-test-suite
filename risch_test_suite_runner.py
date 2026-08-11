@@ -129,6 +129,7 @@ def main():
         if limit and n_tried > limit:
             n_tried -= 1
             break
+        t_case = time.time()
         signal.alarm(TIMEOUT)
         try:
             r = risch_integrate(f, x, **RISCH_KWARGS)
@@ -167,7 +168,8 @@ def main():
             with open(RESULTS_PATH, 'a') as fh:
                 fh.write(json.dumps({'mod': modname.rsplit('.', 1)[-1],
                     'expr': str(f), 'latex': latex(f), 'kind': kind,
-                    'cls': cls, 'reason': reason}) + '\n')
+                    'cls': cls, 'reason': reason,
+                    'secs': round(time.time() - t_case, 3)}) + '\n')
         if n_tried % 50 == 0:
             print('  ...%d tried, %.0f s' % (n_tried, time.time() - t0),
                   flush=True)
