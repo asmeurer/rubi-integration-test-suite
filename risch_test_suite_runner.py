@@ -151,6 +151,7 @@ def main():
             cls = 'error:' + type(e).__name__
         finally:
             signal.alarm(0)
+        secs = round(time.time() - t_case, 3)
         if cls == 'SOLVED':
             # Is this a NEW capability, or could plain integrate()
             # (which does not use the algebraic towers) already do it?
@@ -168,8 +169,7 @@ def main():
             with open(RESULTS_PATH, 'a') as fh:
                 fh.write(json.dumps({'mod': modname.rsplit('.', 1)[-1],
                     'expr': str(f), 'latex': latex(f), 'kind': kind,
-                    'cls': cls, 'reason': reason,
-                    'secs': round(time.time() - t_case, 3)}) + '\n')
+                    'cls': cls, 'reason': reason, 'secs': secs}) + '\n')
         if n_tried % 50 == 0:
             print('  ...%d tried, %.0f s' % (n_tried, time.time() - t0),
                   flush=True)
