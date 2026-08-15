@@ -127,8 +127,11 @@ def _sample_points(breaks):
             real.add(_dyadic(r - d))
             real.add(_dyadic(r + d))
     real.update(default)
-    cx = [Rational(1, 2) + 3*I/4, Rational(-5, 4) + I/3,
-          2 - I/2, Rational(-3, 4) - 5*I/4]
+    # real parts on odd 64ths: breakpoints are usually simple
+    # rationals, and the jump-correction factor (x - r)/sqrt((x - r)**2)
+    # is discontinuous exactly on the vertical line Re(x) == r
+    cx = [Rational(33, 64) + 3*I/4, Rational(-79, 64) + I/3,
+          Rational(129, 64) - I/2, Rational(-47, 64) - 5*I/4]
     return sorted(real), cx
 
 
