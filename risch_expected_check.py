@@ -187,11 +187,25 @@ def check_answer(f, x, ours, expected):
 
     Returns a dict with 'verdict' and supporting detail.
     """
-    from sympy import diff
+    from sympy import Derivative, diff, sign
     dours = diff(ours, x)
+    if ours.has(sign):
+        # sign() is locally constant on the real line: its derivative
+        # is zero away from the breakpoints, which the sample points
+        # avoid.  Freeze it (naive differentiation leaves unevaluatable
+        # Derivative(sign(...)) nodes), and skip the complex sample
+        # points -- sign-corrected answers are real-line oriented.
+        dours = dours.replace(
+            lambda e: isinstance(e, Derivative) and e.has(sign),
+            lambda e: S.Zero)
+        cx_ok = False
+    else:
+        cx_ok = True
     bases = _radicand_bases(f, x)
     breaks = _real_breakpoints(bases, x)
     real_pts, cx_pts = _sample_points(breaks)
+    if not cx_ok:
+        cx_pts = []
 
     used, undecided = [], []
     for pt in real_pts + cx_pts:
