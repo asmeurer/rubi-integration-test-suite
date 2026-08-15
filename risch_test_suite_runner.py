@@ -62,12 +62,18 @@ RISCH_KWARGS = {'algebraic': True} if HAS_ALGEBRAIC else {}
 #                       'transcendental' (radical-free exp-log cases,
 #                       run without the algebraic towers)
 #   RISCH_HANDLE_FIRST  'log' (default) or 'exp' (tower order)
+#   RISCH_CHECK         'expected' to verify every solved case against
+#                       the corpus' expected antiderivative with the
+#                       numerical oracle in risch_expected_check.py
 RESULTS_PATH = os.environ.get('RISCH_RESULTS')
 MODE = os.environ.get('RISCH_MODE', 'algebraic')
 HANDLE_FIRST = os.environ.get('RISCH_HANDLE_FIRST', 'log')
+CHECK = os.environ.get('RISCH_CHECK')
 if MODE == 'transcendental':
     RISCH_KWARGS = {}
 RISCH_KWARGS['handle_first'] = HANDLE_FIRST
+if CHECK:
+    from risch_expected_check import check_case
 
 
 def iter_cases(subpackage):
@@ -164,12 +170,32 @@ def main():
             finally:
                 signal.alarm(0)
             cls = 'SOLVED-both' if old_ok else 'SOLVED-NEW'
+        check = ours = None
+        if CHECK and cls.startswith('SOLVED'):
+            t_check = time.time()
+            ours = r
+            try:
+                check = check_case(f, x, r, case.integral)
+            except Exception as e:
+                check = {'verdict': 'CHECK-ERROR',
+                         'error': type(e).__name__}
+            stats[kind][cls + '/' + check['verdict']] += 1
+            if check['verdict'] == 'WRONG':
+                print('  WRONG-CASE %s | %s | %s'
+                      % (modname.rsplit('.', 1)[-1], f, check),
+                      flush=True)
+            check['secs'] = round(time.time() - t_check, 3)
         stats[kind][cls] += 1
         if RESULTS_PATH:
+            rec = {'mod': modname.rsplit('.', 1)[-1],
+                   'expr': str(f), 'latex': latex(f), 'kind': kind,
+                   'cls': cls, 'reason': reason, 'secs': secs}
+            if check is not None:
+                rec['check'] = check
+                rec['ours'] = str(ours)
+                rec['expected'] = str(case.integral)
             with open(RESULTS_PATH, 'a') as fh:
-                fh.write(json.dumps({'mod': modname.rsplit('.', 1)[-1],
-                    'expr': str(f), 'latex': latex(f), 'kind': kind,
-                    'cls': cls, 'reason': reason, 'secs': secs}) + '\n')
+                fh.write(json.dumps(rec) + '\n')
         if n_tried % 50 == 0:
             print('  ...%d tried, %.0f s' % (n_tried, time.time() - t0),
                   flush=True)
