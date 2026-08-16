@@ -57,9 +57,10 @@ PREC = 60
 # TIMEOUT outranks the OK verdicts: an OK aggregate must mean every
 # applicable round was actually checked.  DEGENERATE stays at the
 # bottom (a round skipped as inapplicable does not taint an OK case).
-SEVERITY = ['WRONG', 'UNDECIDED-NUMERICS', 'UNDECIDED-COVERAGE',
-            'TIMEOUT', 'DERIV-OK-EXP-BAD', 'DERIV-OK-SPLIT',
-            'DERIV-OK-EXP-NC', 'DERIV-OK', 'DEGENERATE']
+SEVERITY = ['LEAKED-SYMBOLS', 'WRONG', 'UNDECIDED-NUMERICS',
+            'UNDECIDED-COVERAGE', 'TIMEOUT', 'DERIV-OK-EXP-BAD',
+            'DERIV-OK-SPLIT', 'DERIV-OK-EXP-NC', 'DERIV-OK',
+            'DEGENERATE']
 
 
 def _radicand_bases(f, x):
@@ -348,6 +349,14 @@ def check_case(f, x, ours, expected, timeout=60):
     (a SIGALRM handler raising TimeoutError must already be installed
     when timeout is nonzero).
     """
+    # a symbol in our answer that is not in the problem is an internal
+    # symbol that leaked past the back-substitutions -- the answer is
+    # unusable, and no amount of numerics can evaluate it anyway
+    if ours.free_symbols - f.free_symbols - {x}:
+        return {'verdict': 'LEAKED-SYMBOLS',
+                'rounds': {'static': {'verdict': 'LEAKED-SYMBOLS',
+                    'symbols': sorted(str(s) for s in
+                        ours.free_symbols - f.free_symbols - {x})}}}
     consts = sorted(f.free_symbols - {x}, key=lambda s: s.name)
     if not consts:
         plan = [('concrete', {})]
