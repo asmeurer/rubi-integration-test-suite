@@ -86,7 +86,16 @@ def iter_cases(subpackage):
     for modinfo in pkgutil.walk_packages(pkg.__path__, pkg.__name__ + '.'):
         if modinfo.ispkg:
             continue
-        mod = importlib.import_module(modinfo.name)
+        try:
+            mod = importlib.import_module(modinfo.name)
+        except Exception as e:
+            # some generated modules crash at import time (e.g. hyper()
+            # called with list arguments); skip them loudly rather than
+            # letting one bad module kill the whole chapter
+            print('  BROKEN-MODULE %s: %s: %s'
+                  % (modinfo.name.rsplit('.', 1)[-1], type(e).__name__,
+                     str(e)[:120]), flush=True)
+            continue
         for case in getattr(mod, 'TEST_CASES', []):
             yield modinfo.name, case
 
