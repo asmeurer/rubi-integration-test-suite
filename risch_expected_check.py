@@ -302,6 +302,33 @@ ROUNDS = [
 ]
 
 
+def _decide_numeric_relationals(e):
+    """Decide Eq/Ne conditions whose sides are numbers.
+
+    Piecewise conditions like Ne(<exact complex arithmetic>, 0) do not
+    auto-evaluate in sympy, so an instantiated Piecewise answer stays
+    a Piecewise and every point evaluation fails.  Deciding zero-ness
+    exactly (is_zero on the difference) collapses them.
+    """
+    from sympy import Eq, Ne
+
+    def dec(rel):
+        z = rel.lhs - rel.rhs
+        if not z.is_number:
+            return rel
+        zz = z.is_zero
+        if zz is None:
+            zz = z.expand().is_zero
+        if zz is None:
+            zz = z.equals(0)
+        if zz is None:
+            return rel
+        truth = zz == isinstance(rel, Eq)
+        return S.true if truth else S.false
+
+    return e.replace(lambda sub: isinstance(sub, (Eq, Ne)), dec)
+
+
 def _degenerate(f_i):
     from sympy import together
     if f_i.has(nan, oo, zoo):
@@ -338,9 +365,10 @@ def check_case(f, x, ours, expected, timeout=60):
             if sub and _degenerate(f_i):
                 rounds[name] = {'verdict': 'DEGENERATE'}
                 continue
-            ours_i = ours.subs(sub) if sub else ours
-            exp_i = expected.subs(sub) if (sub and expected is not None) \
-                else expected
+            ours_i = _decide_numeric_relationals(ours.subs(sub)) \
+                if sub else ours
+            exp_i = _decide_numeric_relationals(expected.subs(sub)) \
+                if (sub and expected is not None) else expected
             if sub and (ours_i.has(nan, oo, zoo) or
                         exp_i is not None and exp_i.has(nan, oo, zoo)):
                 rounds[name] = {'verdict': 'DEGENERATE'}
