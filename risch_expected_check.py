@@ -51,6 +51,9 @@ EQ_TOL2 = Rational(1, 10)**40
 #: relative tolerance above which a double-precision recheck confirms
 #: a genuine mismatch
 NEQ_TOL = Rational(1, 10)**12
+#: relative movement between the two precisions above which the
+#: evaluation itself is untrustworthy
+STAB_TOL = Rational(1, 10)**6
 PREC = 60
 
 # Verdict severity, worst first, for aggregating instantiation rounds.
@@ -178,11 +181,32 @@ def _match_at(e1, e2, x, pt, prec=PREC):
     a2, b2 = _eval_at(e1, x, pt, 2*prec), _eval_at(e2, x, pt, 2*prec)
     if a2 is None or b2 is None:
         return 'undecided'
+    # an evaluation that moves between precisions is numerically
+    # unstable at this point (heavy cancellation of branch-sensitive
+    # pieces, typically) and cannot confirm a mismatch
+    if (_reldiff2(a, a2) > STAB_TOL**2 or
+            _reldiff2(b, b2) > STAB_TOL**2):
+        return 'undecided'
     r2 = _reldiff2(a2, b2)
     if r2 < EQ_TOL2**2:
         return 'eq'
     if r2 > NEQ_TOL**2:
-        return 'neq'
+        # confirm with an independent engine before convicting: evalf
+        # has been caught returning a stable wrong value at high
+        # precision (correct below 60 digits and under mpmath at any
+        # precision), so a mismatch it reports alone is not enough
+        try:
+            import mpmath
+            from sympy import lambdify
+            f1, f2 = lambdify(x, e1, 'mpmath'), lambdify(x, e2, 'mpmath')
+            mpmath.mp.dps = prec
+            v1, v2 = complex(f1(complex(pt))), complex(f2(complex(pt)))
+        except Exception:
+            return 'undecided'
+        scale = max(1.0, abs(v1), abs(v2))
+        if abs(v1 - v2) / scale > float(NEQ_TOL):
+            return 'neq'
+        return 'undecided'
     return 'undecided'
 
 
