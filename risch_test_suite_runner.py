@@ -42,8 +42,8 @@ from collections import Counter
 sys.path.insert(0, sys.argv[1])          # the sympy checkout to test
 sys.path.insert(0, '.')                   # this repo (corpus package)
 
-from sympy import (Integral, Rational, Pow, nan, oo, zoo, integrate,  # noqa: E402
-    latex)
+from sympy import (Integral, Piecewise, Rational, Pow, nan, oo, zoo,  # noqa: E402
+    integrate, latex)
 from sympy.integrals.risch import (risch_integrate,      # noqa: E402
     NonElementaryIntegral)
 
@@ -145,16 +145,27 @@ def main():
             n_tried -= 1
             break
         t_case = time.time()
+        degen_unev = False
         signal.alarm(TIMEOUT)
         try:
             r = risch_integrate(f, x, **RISCH_KWARGS)
             if isinstance(r, NonElementaryIntegral) or \
                     r.has(NonElementaryIntegral):
                 cls = 'CLAIMS-NE'
-            elif r.has(Integral):
-                cls = 'partial'
             else:
-                cls = 'SOLVED'
+                # a conds='piecewise' result carries an honestly
+                # unevaluated Integral in its degenerate (parameter
+                # vanishing) branch; the capability measure is the
+                # generic branch
+                g = r.replace(lambda e: isinstance(e, Piecewise),
+                              lambda e: e.args[0][0]) \
+                    if r.has(Piecewise) else r
+                degen_unev = g is not r and r.has(Integral) and \
+                    not g.has(Integral)
+                if g.has(Integral):
+                    cls = 'partial'
+                else:
+                    cls = 'SOLVED'
         except TimeoutError:
             cls = 'timeout'
             print('  TIMEOUT-CASE %s | %s' % (modname.rsplit('.', 1)[-1], f),
@@ -199,6 +210,8 @@ def main():
             rec = {'mod': modname.rsplit('.', 1)[-1],
                    'expr': str(f), 'latex': latex(f), 'kind': kind,
                    'cls': cls, 'reason': reason, 'secs': secs}
+            if degen_unev:
+                rec['degenerate_unevaluated'] = True
             if check is not None:
                 rec['check'] = check
                 rec['ours'] = str(ours)
